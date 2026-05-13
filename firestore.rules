@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isCoupleMember(coupleId) {
+      return isSignedIn() && coupleId != null && 
+             exists(/databases/$(database)/documents/couples/$(coupleId)) &&
+             request.auth.uid in get(/databases/$(database)/documents/couples/$(coupleId)).data.memberUids;
+    }
+
+    // --- Entities ---
+
+    // User profiles
+    match /users/{uid} {
+      function isValidUser(data) {
+        return data.get('uid', '') == request.auth.uid &&
+               data.get('email', '') is string && 
+               (data.get('displayName', null) == null || data.get('displayName', '') is string) &&
+               (data.get('photoURL', null) == null || data.get('photoURL', '') is string) &&
+               (data.get('coupleId', null) == null || data.get('coupleId', '') is string);
+      }
+
+      allow get: if isSignedIn();
+      allow list: if false; 
+      allow create, update: if isOwner(uid) && isValidUser(incoming());
+    }
+
+    // Couples
+    match /couples/{coupleId} {
+      function isValidCouple(data) {
+        return data.get('id', '') == coupleId &&
+               data.get('name', '') is string && 
+               data.get('memberUids', []) is list && data.get('memberUids', []).size() > 0;
+      }
+
+      allow get: if isSignedIn() && request.auth.uid in resource.data.memberUids;
+      allow create: if isSignedIn() && isValidCouple(incoming()) && request.auth.uid in incoming().memberUids;
+      allow update: if isSignedIn() && request.auth.uid in existing().memberUids && 
+                      isValidCouple(incoming()) && 
+                      incoming().memberUids == existing().memberUids; 
+    }
+
+    // Photos
+    match /photos/{photoId} {
+      function isValidPhoto(data) {
+        return data.get('coupleId', '') is string &&
+               data.get('url', '') is string &&
+               data.get('uploaderUid', '') == request.auth.uid;
+      }
+
+      allow get, list: if isSignedIn() && isCoupleMember(resource.data.coupleId);
+      allow create: if isSignedIn() && isCoupleMember(incoming().coupleId) && isValidPhoto(incoming());
+      allow update: if isSignedIn() && isCoupleMember(existing().coupleId) && 
+                      isValidPhoto(incoming()) &&
+                      incoming().coupleId == existing().coupleId;
+      allow delete: if isSignedIn() && isCoupleMember(existing().coupleId);
+    }
+
+    // Badges
+    match /badges/{badgeId} {
+      function isValidBadge(data) {
+        return data.get('coupleId', '') is string &&
+               data.get('name', '') is string &&
+               data.get('color', '') is string;
+      }
+
+      allow get, list: if isSignedIn() && isCoupleMember(resource.data.coupleId);
+      allow create: if isSignedIn() && isCoupleMember(incoming().coupleId) && isValidBadge(incoming());
+      allow update: if isSignedIn() && isCoupleMember(existing().coupleId) && 
+                      isValidBadge(incoming()) &&
+                      incoming().coupleId == existing().coupleId;
+      allow delete: if isSignedIn() && isCoupleMember(existing().coupleId);
+    }
+
+    // Important Dates
+    match /importantDates/{dateId} {
+      function isValidDate(data) {
+        return data.get('coupleId', '') is string &&
+               data.get('title', '') is string &&
+               data.get('date', '') is string;
+      }
+
+      allow get, list: if isSignedIn() && isCoupleMember(resource.data.coupleId);
+      allow create: if isSignedIn() && isCoupleMember(incoming().coupleId) && isValidDate(incoming());
+      allow update: if isSignedIn() && isCoupleMember(existing().coupleId) && 
+                      isValidDate(incoming()) &&
+                      incoming().coupleId == existing().coupleId;
+      allow delete: if isSignedIn() && isCoupleMember(existing().coupleId);
+    }
+  }
+}
