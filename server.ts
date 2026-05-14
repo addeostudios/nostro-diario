@@ -19,10 +19,11 @@ app.use(express.json({ limit: '50mb' }));
   app.post("/api/upload-to-github", async (req, res) => {
     const { fileName, content, coupleId } = req.body;
     
-    const GITHUB_TOKEN = process.env.GITHUB_TOKEN?.trim();
-    const GITHUB_REPO = process.env.GITHUB_REPO?.trim();
+    // Check various common naming variations
+    const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN)?.trim();
+    const GITHUB_REPO = (process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.REPOSITORIO_GITHUB)?.trim();
 
-    console.log(`[GitHub Upload] Attempting upload for couple: ${coupleId}, file: ${fileName}`);
+    console.log(`[GitHub Upload] Attempting upload for couple: ${coupleId}, file: ${fileName}. Token present: ${!!GITHUB_TOKEN}, Repo present: ${!!GITHUB_REPO}`);
 
     if (!GITHUB_TOKEN || !GITHUB_REPO) {
       return res.status(500).json({ 
@@ -70,8 +71,8 @@ app.use(express.json({ limit: '50mb' }));
   // Github Delete API
   app.delete("/api/delete-from-github", async (req, res) => {
     const { fileName, coupleId } = req.body;
-    const GITHUB_TOKEN = process.env.GITHUB_TOKEN?.trim();
-    const GITHUB_REPO = process.env.GITHUB_REPO?.trim();
+    const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN)?.trim();
+    const GITHUB_REPO = (process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.REPOSITORIO_GITHUB)?.trim();
 
     if (!GITHUB_TOKEN || !GITHUB_REPO) {
       return res.status(500).json({ error: "Configurazione mancante" });
@@ -118,8 +119,8 @@ app.use(express.json({ limit: '50mb' }));
   // Photo Proxy to serve images from private GitHub repo
   app.get("/api/photo-proxy", async (req, res) => {
     const photoPath = req.query.path as string;
-    const GITHUB_TOKEN = process.env.GITHUB_TOKEN?.trim();
-    const GITHUB_REPO = process.env.GITHUB_REPO?.trim();
+    const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN)?.trim();
+    const GITHUB_REPO = (process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.REPOSITORIO_GITHUB)?.trim();
 
     if (!photoPath || !GITHUB_TOKEN || !GITHUB_REPO) {
       return res.status(400).send("Path o configurazione mancante");
@@ -158,19 +159,29 @@ app.use(express.json({ limit: '50mb' }));
 
   // Config check API
   app.get("/api/github-config-check", (req, res) => {
-    const hasToken = !!process.env.GITHUB_TOKEN;
-    const hasRepo = !!process.env.GITHUB_REPO;
+    // Check various common naming variations
+    const token = process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN;
+    const repo = process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.REPOSITORIO_GITHUB;
     
-    console.log(`[Config Check] Token: ${hasToken}, Repo: ${hasRepo}`);
+    const hasToken = !!token;
+    const hasRepo = !!repo;
+    
+    const missing = [];
+    if (!hasToken) missing.push("GITHUB_TOKEN");
+    if (!hasRepo) missing.push("GITHUB_REPO");
+    
+    const platform = process.env.VERCEL ? "Vercel" : (process.env.NODE_ENV === "production" ? "Production" : "Local");
+    
+    console.log(`[Config Check] Platform: ${platform}, Token: ${hasToken}, Repo: ${hasRepo}`);
+    if (!hasToken || !hasRepo) {
+      console.log("[Config Check] Debug keys found:", Object.keys(process.env).filter(k => k.toLowerCase().includes('github') || k.toLowerCase().includes('repo')));
+    }
     
     res.json({
       configured: hasToken && hasRepo,
-      missing: [
-        !hasToken && "GITHUB_TOKEN",
-        !hasRepo && "GITHUB_REPO"
-      ].filter(Boolean),
-      repo: process.env.GITHUB_REPO || null,
-      environment: process.env.VERCEL ? "Vercel" : "AI Studio/Custom"
+      missing: missing,
+      repo: repo || null,
+      environment: platform
     });
   });
 
