@@ -1,6 +1,0 @@
-{
-  "name": "Nostro Diario",
-  "description": "Un diario fotografico intimo per coppie, con album mensili automatici, badge personalizzati e un calendario delle date importanti.",
-  "requestFramePermissions": ["camera"],
-  "majorCapabilities": []
-}
