@@ -111,12 +111,19 @@ export default function App() {
   const login = async () => {
     if (isLoggingIn) return;
     setIsLoggingIn(true);
+    console.log("Inizio login con Google...");
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      console.log("Login completato con successo:", result.user.uid);
     } catch (e: any) {
-      if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
-        console.error('Login failed', e);
+      console.error("Errore durante il login:", e);
+      if (e.code === 'auth/unauthorized-domain') {
+        alert("Errore: Questo dominio non è autorizzato in Firebase. \n\nPer risolvere:\n1. Vai nella Console Firebase\n2. Authentication > Settings > Authorized Domains\n3. Aggiungi il tuo URL Vercel (es. nostro-diario.vercel.app)");
+      } else if (e.code === 'auth/popup-blocked') {
+        alert("Il popup è stato bloccato dal browser. Abilita i popup per questo sito e riprova.");
+      } else if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+        alert(`Errore di accesso (${e.code}): ${e.message}`);
       }
     } finally {
       setIsLoggingIn(false);
@@ -161,8 +168,12 @@ export default function App() {
             Un luogo intimo per custodire i vostri momenti più belli. 
             Crea il tuo diario fotografico condiviso.
           </p>
-          <button onClick={login} className="btn-primary w-full py-4 text-lg shadow-xl shadow-slate-900/10">
-            Entra con Google
+          <button 
+            onClick={login} 
+            disabled={isLoggingIn}
+            className="btn-primary w-full py-4 text-lg shadow-xl shadow-slate-900/10 disabled:opacity-50 transition-all"
+          >
+            {isLoggingIn ? 'Accesso in corso...' : 'Entra con Google'}
           </button>
         </div>
       </div>

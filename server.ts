@@ -5,12 +5,11 @@ import path from "path";
 import axios from "axios";
 import cors from "cors";
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  app.use(cors());
-  app.use(express.json({ limit: '50mb' }));
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
 
   // GitHub Upload API
   app.post("/api/upload-to-github", async (req, res) => {
@@ -161,24 +160,35 @@ async function startServer() {
     });
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
+  export default app;
+
+  // Handles serving the app
+  const setupProduction = () => {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
+  };
+
+  if (process.env.NODE_ENV !== "production") {
+    const startDev = async () => {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running on http://localhost:${PORT}`);
+      });
+    };
+    startDev();
+  } else {
+    setupProduction();
+    // Only listen if not on Vercel (Vercel uses the exported app)
+    if (!process.env.VERCEL) {
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running on port ${PORT}`);
+      });
+    }
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
-}
-
-startServer();
