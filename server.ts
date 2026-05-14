@@ -4,6 +4,10 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import axios from "axios";
 import cors from "cors";
+import dotenv from "dotenv";
+
+// Load .env file if present
+dotenv.config();
 
 const app = express();
 const PORT = 3000;
@@ -22,8 +26,8 @@ app.use(express.json({ limit: '50mb' }));
 
     if (!GITHUB_TOKEN || !GITHUB_REPO) {
       return res.status(500).json({ 
-        error: "Configurazione mancante", 
-        details: "Assicurati di aver impostato GITHUB_TOKEN e GITHUB_REPO nelle 'Secrets' di AI Studio." 
+        error: "Configurazione GitHub mancante", 
+        details: "Assicurati di aver impostato GITHUB_TOKEN e GITHUB_REPO nelle variabili d'ambiente (Environment Variables) della piattaforma di hosting." 
       });
     }
 
@@ -154,9 +158,19 @@ app.use(express.json({ limit: '50mb' }));
 
   // Config check API
   app.get("/api/github-config-check", (req, res) => {
+    const hasToken = !!process.env.GITHUB_TOKEN;
+    const hasRepo = !!process.env.GITHUB_REPO;
+    
+    console.log(`[Config Check] Token: ${hasToken}, Repo: ${hasRepo}`);
+    
     res.json({
-      configured: !!(process.env.GITHUB_TOKEN && process.env.GITHUB_REPO),
-      repo: process.env.GITHUB_REPO || null
+      configured: hasToken && hasRepo,
+      missing: [
+        !hasToken && "GITHUB_TOKEN",
+        !hasRepo && "GITHUB_REPO"
+      ].filter(Boolean),
+      repo: process.env.GITHUB_REPO || null,
+      environment: process.env.VERCEL ? "Vercel" : "AI Studio/Custom"
     });
   });
 
