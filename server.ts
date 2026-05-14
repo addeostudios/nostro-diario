@@ -19,11 +19,10 @@ app.use(express.json({ limit: '50mb' }));
   app.post("/api/upload-to-github", async (req, res) => {
     const { fileName, content, coupleId } = req.body;
     
-    // Check various common naming variations
-    const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN)?.trim();
-    const GITHUB_REPO = (process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.REPOSITORIO_GITHUB)?.trim();
+    const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || process.env.GIT_TOKEN)?.trim();
+    const GITHUB_REPO = (process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.GITHUB_REPOSITORY)?.trim();
 
-    console.log(`[GitHub Upload] Attempting upload for couple: ${coupleId}, file: ${fileName}. Token present: ${!!GITHUB_TOKEN}, Repo present: ${!!GITHUB_REPO}`);
+    console.log(`[GitHub Upload] Attempting upload for couple: ${coupleId}, file: ${fileName}`);
 
     if (!GITHUB_TOKEN || !GITHUB_REPO) {
       return res.status(500).json({ 
@@ -71,8 +70,8 @@ app.use(express.json({ limit: '50mb' }));
   // Github Delete API
   app.delete("/api/delete-from-github", async (req, res) => {
     const { fileName, coupleId } = req.body;
-    const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN)?.trim();
-    const GITHUB_REPO = (process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.REPOSITORIO_GITHUB)?.trim();
+    const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || process.env.GIT_TOKEN)?.trim();
+    const GITHUB_REPO = (process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.GITHUB_REPOSITORY)?.trim();
 
     if (!GITHUB_TOKEN || !GITHUB_REPO) {
       return res.status(500).json({ error: "Configurazione mancante" });
@@ -119,8 +118,8 @@ app.use(express.json({ limit: '50mb' }));
   // Photo Proxy to serve images from private GitHub repo
   app.get("/api/photo-proxy", async (req, res) => {
     const photoPath = req.query.path as string;
-    const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN)?.trim();
-    const GITHUB_REPO = (process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.REPOSITORIO_GITHUB)?.trim();
+    const GITHUB_TOKEN = (process.env.GITHUB_TOKEN || process.env.GIT_TOKEN)?.trim();
+    const GITHUB_REPO = (process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.GITHUB_REPOSITORY)?.trim();
 
     if (!photoPath || !GITHUB_TOKEN || !GITHUB_REPO) {
       return res.status(400).send("Path o configurazione mancante");
@@ -159,27 +158,26 @@ app.use(express.json({ limit: '50mb' }));
 
   // Config check API
   app.get("/api/github-config-check", (req, res) => {
-    // Check various common naming variations
-    const token = process.env.GITHUB_TOKEN || process.env.VITE_GITHUB_TOKEN;
-    const repo = process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.REPOSITORIO_GITHUB;
+    // Check all possible variations used by the user
+    const token = process.env.GITHUB_TOKEN || process.env.GIT_TOKEN;
+    const repo = process.env.GITHUB_REPO || process.env.REPOSITIVO_GITHUB || process.env.GITHUB_REPOSITORY;
     
     const hasToken = !!token;
     const hasRepo = !!repo;
     
-    const missing = [];
-    if (!hasToken) missing.push("GITHUB_TOKEN");
-    if (!hasRepo) missing.push("GITHUB_REPO");
-    
-    const platform = process.env.VERCEL ? "Vercel" : (process.env.NODE_ENV === "production" ? "Production" : "Local");
-    
+    // Determine platform
+    let platform = "AI Studio (Preview)";
+    if (process.env.VERCEL) platform = "Vercel";
+    else if (process.env.NODE_ENV === "production" && !process.env.VERCEL) platform = "Production Server";
+
     console.log(`[Config Check] Platform: ${platform}, Token: ${hasToken}, Repo: ${hasRepo}`);
-    if (!hasToken || !hasRepo) {
-      console.log("[Config Check] Debug keys found:", Object.keys(process.env).filter(k => k.toLowerCase().includes('github') || k.toLowerCase().includes('repo')));
-    }
     
     res.json({
       configured: hasToken && hasRepo,
-      missing: missing,
+      missing: [
+        !hasToken && "GITHUB_TOKEN",
+        !hasRepo && "GITHUB_REPO (o REPOSITIVO_GITHUB)"
+      ].filter(Boolean),
       repo: repo || null,
       environment: platform
     });
