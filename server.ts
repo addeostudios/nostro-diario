@@ -27,8 +27,6 @@ app.use(express.json({ limit: '50mb' }));
 
     // Look for Repo
     const repo = (
-      env.REPOSITIVO_GITHUB || // Specific name from user screenshot
-      env.REPOSITORIO_GITHUB || 
       env.GITHUB_REPO || 
       env.GITHUB_REPOSITORY || 
       env.repo ||
@@ -48,7 +46,7 @@ app.use(express.json({ limit: '50mb' }));
     if (!GITHUB_TOKEN || !GITHUB_REPO) {
       return res.status(500).json({ 
         error: "Configurazione GitHub mancante", 
-        details: "Assicurati di aver impostato GITHUB_TOKEN e REPOSITIVO_GITHUB nelle variabili d'ambiente di Vercel e di aver effettuato un Redeploy." 
+        details: "Assicurati di aver impostato GITHUB_TOKEN e GITHUB_REPO nelle variabili d'ambiente di Vercel e di aver effettuato un Redeploy." 
       });
     }
 

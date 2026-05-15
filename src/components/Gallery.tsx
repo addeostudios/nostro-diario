@@ -118,7 +118,7 @@ export default function Gallery({ coupleId, badges, isDarkMode }: GalleryProps) 
             <div>
               <p className={`font-medium ${isDarkMode ? 'text-amber-200' : 'text-amber-900'}`}>Configurazione GitHub incompleta</p>
               <p className={`text-sm font-light ${isDarkMode ? 'text-amber-300/60' : 'text-amber-700/80'}`}>
-                Assicurati che <strong>GITHUB_TOKEN</strong> e <strong>REPOSITIVO_GITHUB</strong> siano attive per l'ambiente di Produzione su Vercel e effettua un Redeploy.
+                Assicurati che <strong>GITHUB_TOKEN</strong> e <strong>GITHUB_REPO</strong> siano attive per l'ambiente di Produzione su Vercel e effettua un Redeploy.
               </p>
             </div>
           </div>
