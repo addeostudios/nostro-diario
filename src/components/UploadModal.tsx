@@ -46,36 +46,53 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
       // Compression logic: Resize to max 1200px before sending to server
       const compressImage = async (imgFile: File): Promise<string> => {
         return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(imgFile);
-          reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target?.result as string;
-            img.onload = () => {
-              const canvas = document.createElement('canvas');
-              let width = img.width;
-              let height = img.height;
-              const maxDim = 1200;
+          // Use URL.createObjectURL instead of FileReader for loading the image
+          // This is much more memory efficient and reliable on mobile
+          const url = URL.createObjectURL(imgFile);
+          const img = new Image();
+          
+          img.onload = () => {
+            URL.revokeObjectURL(url); // Clean up memory
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            const maxDim = 1200;
 
-              if (width > height && width > maxDim) {
-                height *= maxDim / width;
-                width = maxDim;
-              } else if (height > maxDim) {
-                width *= maxDim / height;
-                height = maxDim;
-              }
+            if (width > height && width > maxDim) {
+              height *= maxDim / width;
+              width = maxDim;
+            } else if (height > maxDim) {
+              width *= maxDim / height;
+              height = maxDim;
+            }
 
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext('2d');
-              ctx?.drawImage(img, 0, 0, width, height);
-              // Use quality 0.7 to ensure far below Vercel's 4.5MB limit
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-              resolve(dataUrl.split(',')[1]);
-            };
-            img.onerror = () => reject(new Error('Immagine non valida'));
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              reject(new Error('Impossibile inizializzare il contesto grafica'));
+              return;
+            }
+            
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Use quality 0.7 to ensure far below Vercel's 4.5MB limit
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            const base64 = dataUrl.split(',')[1];
+            
+            if (!base64) {
+              reject(new Error('Errore durante la conversione dell\'immagine'));
+              return;
+            }
+            resolve(base64);
           };
-          reader.onerror = () => reject(new Error('Errore durante la lettura del file'));
+
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Immagine non valida o formato non supportato dal browser'));
+          };
+
+          img.src = url;
         });
       };
 
