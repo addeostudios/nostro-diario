@@ -1,6 +1,5 @@
 
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import axios from "axios";
 import cors from "cors";
@@ -222,6 +221,7 @@ app.use(express.json({ limit: '50mb' }));
   if (process.env.NODE_ENV !== "production") {
     const startDev = async () => {
       try {
+        const { createServer: createViteServer } = await import("vite");
         const vite = await createViteServer({
           server: { middlewareMode: true },
           appType: "spa",
