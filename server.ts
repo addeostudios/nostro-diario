@@ -58,7 +58,12 @@ app.use(express.json({ limit: '50mb' }));
     const { fileName, content, coupleId } = req.body;
     const { token: GITHUB_TOKEN, repo: GITHUB_REPO } = getGitConfig();
 
-    console.log(`[GitHub Upload] Attempting upload for couple: ${coupleId}, file: ${fileName}`);
+    if (!fileName || !coupleId) {
+      console.error("[GitHub Upload] Error: Missing fileName or coupleId in request body");
+      return res.status(400).json({ error: "Dati mancanti nella richiesta" });
+    }
+
+    console.log(`[GitHub Upload] Attempting upload - Couple: ${coupleId}, File: ${fileName}, Token: ${!!GITHUB_TOKEN}`);
 
     if (!GITHUB_TOKEN || !GITHUB_REPO) {
       return res.status(500).json({ 

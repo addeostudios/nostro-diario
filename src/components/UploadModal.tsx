@@ -41,7 +41,7 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
     if (!file || !auth.currentUser) return;
     setUploading(true);
     try {
-      const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      const fileName = `${Date.now()}-${auth.currentUser.uid}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve, reject) => {
