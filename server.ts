@@ -47,6 +47,10 @@ app.use(express.json({ limit: '50mb' }));
       ""
     ).trim();
 
+    if (env.VERCEL) {
+      console.log(`[GitConfig Check] Token Found: ${!!token}, Repo: ${repo}`);
+    }
+
     return { token, repo };
   };
 
@@ -217,24 +221,30 @@ app.use(express.json({ limit: '50mb' }));
 
   if (process.env.NODE_ENV !== "production") {
     const startDev = async () => {
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: "spa",
-      });
-      app.use(vite.middlewares);
-      app.listen(PORT, "0.0.0.0", () => {
-        console.log(`Server running on http://localhost:${PORT}`);
-      });
+      try {
+        const vite = await createViteServer({
+          server: { middlewareMode: true },
+          appType: "spa",
+        });
+        app.use(vite.middlewares);
+        app.listen(PORT, "0.0.0.0", () => {
+          console.log(`Server running on http://localhost:${PORT}`);
+        });
+      } catch (e) {
+        console.error("Vite Dev Server Error:", e);
+      }
     };
     startDev();
-  } else {
+  } else if (!process.env.VERCEL) {
+    // Production but NOT Vercel (e.g. Docker/Local Prod)
     setupProduction();
-    // Only listen if not on Vercel (Vercel uses the exported app)
-    if (!process.env.VERCEL) {
-      app.listen(PORT, "0.0.0.0", () => {
-        console.log(`Server running on port ${PORT}`);
-      });
-    }
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } else {
+    // On Vercel, we don't call app.listen() and don't need setupProduction()
+    // because Vercel handles the static files via vercel.json routes
+    console.log("Running in Vercel Serverless environment");
   }
 
 export default app;
