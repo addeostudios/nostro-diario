@@ -26,7 +26,7 @@ export default function Gallery({ coupleId, badges, isDarkMode }: GalleryProps) 
   const [isBadgeManagerOpen, setIsBadgeManagerOpen] = useState(false);
   const [selectedBadge, setSelectedBadge] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [githubConfig, setGithubConfig] = useState<{configured: boolean, missing?: string[], environment?: string} | null>(null);
+  const [githubConfigured, setGithubConfigured] = useState<boolean | null>(null);
   
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
@@ -36,8 +36,8 @@ export default function Gallery({ coupleId, badges, isDarkMode }: GalleryProps) 
     
     fetch('/api/github-config-check')
       .then(r => r.json())
-      .then(data => setGithubConfig(data))
-      .catch(() => setGithubConfig({ configured: false }));
+      .then(data => setGithubConfigured(data.configured))
+      .catch(() => setGithubConfigured(false));
 
     return () => {
       unsubPhotos();
@@ -109,7 +109,7 @@ export default function Gallery({ coupleId, badges, isDarkMode }: GalleryProps) 
         <p className="text-slate-400 lg:text-lg font-light italic">Tutti i momenti custoditi con amore.</p>
       </header>
 
-      {githubConfig?.configured === false && (
+      {githubConfigured === false && (
         <div className={`p-6 border rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4 ${isDarkMode ? 'bg-amber-900/20 border-amber-900/30' : 'bg-amber-50 border-amber-100'}`}>
           <div className="flex items-center space-x-4">
             <div className={`p-3 rounded-2xl ${isDarkMode ? 'bg-amber-900 text-amber-200' : 'bg-amber-100 text-amber-600'}`}>
@@ -118,12 +118,7 @@ export default function Gallery({ coupleId, badges, isDarkMode }: GalleryProps) 
             <div>
               <p className={`font-medium ${isDarkMode ? 'text-amber-200' : 'text-amber-900'}`}>Configurazione GitHub incompleta</p>
               <p className={`text-sm font-light ${isDarkMode ? 'text-amber-300/60' : 'text-amber-700/80'}`}>
-                {githubConfig.missing && githubConfig.missing.length > 0 ? (
-                  <>Manca: <span className="font-bold">{githubConfig.missing.join(', ')}</span>. </>
-                ) : (
-                  <>Errore nella configurazione GitHub. </>
-                )}
-                Aggiungi le chiavi nelle impostazioni di {githubConfig.environment || 'AI Studio/Vercel'}.
+                Assicurati che <strong>GITHUB_TOKEN</strong> e <strong>REPOSITIVO_GITHUB</strong> siano attive per l'ambiente di Produzione su Vercel e effettua un Redeploy.
               </p>
             </div>
           </div>
