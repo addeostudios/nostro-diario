@@ -191,13 +191,20 @@ app.use(express.json({ limit: '50mb' }));
   app.get("/api/github-config-check", (req, res) => {
     const { token, repo } = getGitConfig();
     
+    const status = {
+      token_found: token.length > 0,
+      repo_found: repo.length > 0,
+      repo_name: repo || null,
+      platform: process.env.VERCEL ? "Vercel" : "AI Studio"
+    };
+
+    console.log("[Config Check Result]:", status);
+    
     res.json({
-      configured: token.length > 0 && repo.length > 0,
-      repo: repo || null
+      configured: status.token_found && status.repo_found,
+      ...status
     });
   });
-
-  export default app;
 
   // Handles serving the app
   const setupProduction = () => {
@@ -229,3 +236,5 @@ app.use(express.json({ limit: '50mb' }));
       });
     }
   }
+
+export default app;
