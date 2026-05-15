@@ -83,7 +83,7 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
-            const maxDim = 1200;
+            const maxDim = 1000;
 
             if (width > height && width > maxDim) {
               height *= maxDim / width;
@@ -131,39 +131,57 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
             }, 'image/jpeg', 0.6);
           };
 
-          const loadImage = (source: string) => {
+          // Primary method: URL.createObjectURL (Most memory efficient for mobile)
+          let url: string | null = null;
+          try {
+            url = URL.createObjectURL(fileToProcess);
+          } catch (e) {
+            console.error('[Upload] URL.createObjectURL failed:', e);
+          }
+
+          const loadImage = (source: string, isFallback: boolean = false) => {
             const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => processImage(img);
+            img.onload = () => {
+              if (url) URL.revokeObjectURL(url);
+              processImage(img);
+            };
             img.onerror = () => {
-              // Final fallback if everything fails
-              const isInApp = /Instagram|FBAN|FBAV|WhatsApp|Messenger/i.test(navigator.userAgent);
-              if (isInApp) {
-                reject(new Error('Il browser di questa app (Instagram/FB) sta bloccando il file. Tocca i tre puntini in alto a destra e seleziona "Apri in Chrome/Safari".'));
+              if (url) URL.revokeObjectURL(url);
+              
+              if (!isFallback) {
+                // Fallback to FileReader if URL.createObjectURL fails to load the image
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                  if (e.target?.result) {
+                    loadImage(e.target.result as string, true);
+                  }
+                };
+                reader.readAsDataURL(fileToProcess);
               } else {
-                reject(new Error('Formato foto non riconosciuto dal browser. Prova a scattare una nuova foto o usa uno screenshot.'));
+                const isInApp = /Instagram|FBAN|FBAV|WhatsApp|Messenger/i.test(navigator.userAgent);
+                if (isInApp) {
+                  reject(new Error('Il browser di questa app sta bloccando l\'accesso alle foto. Tocca i tre puntini in alto a destra e seleziona "Apri in Chrome/Safari".'));
+                } else {
+                  reject(new Error('Formato immagine non supportato dal browser. Prova a scattare una nuova foto o usa lo screenshot.'));
+                }
               }
             };
             img.src = source;
           };
 
-          // Try FileReader first as it's often more compatible with older mobile 'search engines' (browsers)
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            if (e.target?.result) {
-              loadImage(e.target.result as string);
-            }
-          };
-          reader.onerror = () => {
-            // Fallback to URL.createObjectURL if FileReader fails
-            try {
-              const url = URL.createObjectURL(fileToProcess);
-              loadImage(url);
-            } catch (e) {
-              reject(new Error('Il browser non ha il permesso di accedere alle foto. Verifica le impostazioni di privacy del telefono.'));
-            }
-          };
-          reader.readAsDataURL(fileToProcess);
+          if (url) {
+            loadImage(url);
+          } else {
+            // If createObjectURL failed immediately, try FileReader
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              if (e.target?.result) {
+                loadImage(e.target.result as string, true);
+              }
+            };
+            reader.onerror = () => reject(new Error('Impossibile accedere alla foto sul dispositivo.'));
+            reader.readAsDataURL(fileToProcess);
+          }
         });
       };
 
