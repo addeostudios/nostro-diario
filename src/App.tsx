@@ -113,17 +113,27 @@ export default function App() {
     setIsLoggingIn(true);
     console.log("Inizio login con Google...");
     const provider = new GoogleAuthProvider();
+    
+    // Check for In-App browsers which are notorious for auth issues
+    const isInApp = /Instagram|FBAN|FBAV|WhatsApp|Messenger/i.test(navigator.userAgent);
+    if (isInApp) {
+      alert("ATTENZIONE: Sembra che tu stia usando il browser interno di un'app (es. WhatsApp o Instagram).\n\nQuesti browser bloccano l'accesso in molti casi. Tocca i tre puntini (o l'icona della bussola) e seleziona 'Apri in Chrome' o 'Apri in Safari' per funzionare correttamente.");
+    }
+
     try {
       const result = await signInWithPopup(auth, provider);
       console.log("Login completato con successo:", result.user.uid);
     } catch (e: any) {
       console.error("Errore durante il login:", e);
-      if (e.code === 'auth/unauthorized-domain') {
-        alert("Errore: Questo dominio non è autorizzato in Firebase. \n\nPer risolvere:\n1. Vai nella Console Firebase\n2. Authentication > Settings > Authorized Domains\n3. Aggiungi il tuo URL Vercel (es. nostro-diario.vercel.app)");
+      
+      if (e.message?.includes('missing initial state') || e.message?.includes('storage-partitioned')) {
+        alert("ERRORE DI ACCESSO: Il browser sta bloccando i dati necessari (sessionStorage).\n\nPer risolvere:\n1. Apri il link direttamente in Chrome (Android) o Safari (iPhone).\n2. Evita di aprirlo dall'interno di altre app come WhatsApp o Instagram.");
+      } else if (e.code === 'auth/unauthorized-domain') {
+        alert("Errore: Questo dominio non è autorizzato in Firebase. \n\nPer risolvere:\n1. Vai nella Console Firebase\n2. Authentication > Settings > Authorized Domains\n3. Aggiungi il tuo URL attuale.");
       } else if (e.code === 'auth/popup-blocked') {
         alert("Il popup è stato bloccato dal browser. Abilita i popup per questo sito e riprova.");
       } else if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
-        alert(`Errore di accesso (${e.code}): ${e.message}`);
+        alert(`Errore di accesso: ${e.message}`);
       }
     } finally {
       setIsLoggingIn(false);
