@@ -15,13 +15,25 @@ app.use(express.json({ limit: '50mb' }));
   const getGitConfig = () => {
     const env = process.env;
     
+    // Debug logging for Vercel troubleshooting
+    if (env.VERCEL) {
+      console.log("--- ENV DEBUG VERCEL ---");
+      console.log("GITHUB_TOKEN:", !!env.GITHUB_TOKEN);
+      console.log("GIT_TOKEN:", !!env.GIT_TOKEN);
+      console.log("GH_TOKEN:", !!env.GH_TOKEN);
+      console.log("GITHUB_REPO:", env.GITHUB_REPO || "Not set");
+      console.log("GITHUB_REPOSITORY:", env.GITHUB_REPOSITORY || "Not set");
+      console.log("REPOSITORIO_GITHUB:", env.REPOSITORIO_GITHUB || "Not set");
+      console.log("------------------------");
+    }
+    
     // Look for Token
     const token = (
       env.GITHUB_TOKEN || 
       env.GIT_TOKEN || 
-      env.token || 
       env.GH_TOKEN ||
-      env.GITHUB_CHIAVE || // Possible user variation
+      env.token || 
+      env.GITHUB_CHIAVE || 
       ""
     ).trim();
 
@@ -29,6 +41,8 @@ app.use(express.json({ limit: '50mb' }));
     const repo = (
       env.GITHUB_REPO || 
       env.GITHUB_REPOSITORY || 
+      env.REPOSITORIO_GITHUB || 
+      env.REPOSITIVO_GITHUB || 
       env.repo ||
       ""
     ).trim();
