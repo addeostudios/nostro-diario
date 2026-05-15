@@ -11,7 +11,11 @@ import {
   Edit2,
   Moon,
   Sun,
-  Check
+  Check,
+  Smartphone,
+  Info,
+  Share as ShareIcon,
+  PlusSquare
 } from 'lucide-react';
 import { Couple, UserProfile } from '../types';
 import { doc, setDoc } from 'firebase/firestore';
@@ -190,6 +194,41 @@ export default function Account({ couple, profile, onUpdateCouple, isDarkMode, s
                   {isDarkMode ? <Moon size={12} /> : <Sun size={12} />}
                 </motion.div>
               </button>
+            </div>
+          </motion.section>
+
+          {/* PWA Installation Card */}
+          <motion.section 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.08 }}
+            className={`card px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-6 relative overflow-hidden ${isDarkMode ? 'bg-indigo-900/40 border-indigo-800/50' : 'bg-indigo-50/50 border-indigo-100'}`}
+          >
+            <div className="flex items-start space-x-4">
+              <div className={`p-3 rounded-2xl ${isDarkMode ? 'bg-indigo-500/20 text-indigo-400' : 'bg-white text-indigo-500 shadow-sm'}`}>
+                <Smartphone size={20} />
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <h3 className={`text-lg font-serif italic ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>Usa come App</h3>
+                  <p className={`text-[10px] uppercase font-bold tracking-widest mt-0.5 ${isDarkMode ? 'text-indigo-300/60' : 'text-indigo-400'}`}>Installazione Home Screen</p>
+                </div>
+                
+                <div className="space-y-4 pt-1">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-1 flex items-center justify-center w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] font-bold">1</div>
+                    <p className={`text-xs ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                      <strong>Su iPhone:</strong> Clicca <ShareIcon size={14} className="inline mx-1" /> poi seleziona <strong>"Aggiungi alla Home"</strong>.
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-1 flex items-center justify-center w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] font-bold">2</div>
+                    <p className={`text-xs ${isDarkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+                      <strong>Su Android:</strong> Clicca i tre puntini in alto a destra e seleziona <strong>"Installa app"</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </motion.section>
 

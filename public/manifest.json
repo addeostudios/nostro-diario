@@ -1,0 +1,23 @@
+{
+  "name": "Nostro Diario",
+  "short_name": "Diario",
+  "description": "Un diario speciale per i vostri ricordi più belli.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#db2777",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/833/833472.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
