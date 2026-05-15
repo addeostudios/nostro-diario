@@ -110,15 +110,25 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
             ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
             
-            try {
-              // Quality level optimized for Vercel limits and mobile speed
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
-              const base64 = dataUrl.split(',')[1];
-              if (!base64) throw new Error('Base64 creation failed');
-              resolve(base64);
-            } catch (err) {
-              reject(new Error('Errore nella compressione della foto. Riprova tra poco.'));
-            }
+            // Use toBlob instead of toDataURL for better memory efficiency on mobile
+            canvas.toBlob((blob) => {
+              if (!blob) {
+                reject(new Error('Errore nella compressione della foto.'));
+                return;
+              }
+
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const base64 = (reader.result as string).split(',')[1];
+                if (!base64) {
+                  reject(new Error('Errore nella conversione finale.'));
+                  return;
+                }
+                resolve(base64);
+              };
+              reader.onerror = () => reject(new Error('Errore durante la lettura del file compresso.'));
+              reader.readAsDataURL(blob);
+            }, 'image/jpeg', 0.6);
           };
 
           const loadImage = (source: string) => {
