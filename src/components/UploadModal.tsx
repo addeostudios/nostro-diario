@@ -43,30 +43,43 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
     try {
       const fileName = `${Date.now()}-${auth.currentUser.uid}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       
-      // Compression and conversion logic
+      // Compression and conversion logic - Optimized for maximum browser compatibility
       const processFile = async (imgFile: File): Promise<string> => {
+        if (!imgFile || imgFile.size === 0) {
+          throw new Error('Il file selezionato è vuoto o non accessibile.');
+        }
+
         let fileToProcess = imgFile;
 
-        // Support for HEIC/HEIF (common on iPhones)
-        if (imgFile.name.toLowerCase().endsWith('.heic') || imgFile.name.toLowerCase().endsWith('.heif')) {
+        // Support for HEIC/HEIF with improved detection
+        const isHEIC = imgFile.name.toLowerCase().endsWith('.heic') || 
+                       imgFile.name.toLowerCase().endsWith('.heif') ||
+                       imgFile.type === 'image/heic' || 
+                       imgFile.type === 'image/heif';
+
+        if (isHEIC) {
           try {
             const heic2any = (await import('heic2any')).default;
             const blob = await heic2any({
               blob: imgFile,
               toType: 'image/jpeg',
-              quality: 0.8
+              quality: 0.6
             });
             fileToProcess = new File([Array.isArray(blob) ? blob[0] : blob], imgFile.name.replace(/\.[^/.]+$/, ".jpg"), {
               type: 'image/jpeg'
             });
           } catch (e) {
-            console.error('HEIC conversion failed:', e);
-            // Continue with original file if conversion fails, handled by processImage fallback
+            console.warn('[Upload] HEIC conversion skipped or failed:', e);
           }
         }
 
         return new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Il caricamento sta impiegando troppo tempo. Prova ad usare una foto meno pesante o apri il sito in Safari/Chrome.'));
+          }, 25000);
+
           const processImage = (img: HTMLImageElement) => {
+            clearTimeout(timeout);
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
@@ -82,45 +95,65 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
 
             canvas.width = width;
             canvas.height = height;
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext('2d', { 
+              alpha: false,
+              willReadFrequently: false
+            });
+            
             if (!ctx) {
-              reject(new Error('Impossibile inizializzare il contesto grafica'));
+              reject(new Error('Problema di memoria del browser. Chiudi altre schede e riprova.'));
               return;
             }
             
+            // Draw with smoothing for better quality
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-            const base64 = dataUrl.split(',')[1];
             
-            if (!base64) {
-              reject(new Error('Errore durante la conversione dell\'immagine'));
-              return;
+            try {
+              // Quality level optimized for Vercel limits and mobile speed
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+              const base64 = dataUrl.split(',')[1];
+              if (!base64) throw new Error('Base64 creation failed');
+              resolve(base64);
+            } catch (err) {
+              reject(new Error('Errore nella compressione della foto. Riprova tra poco.'));
             }
-            resolve(base64);
           };
 
-          const url = URL.createObjectURL(fileToProcess);
-          const img = new Image();
-          
-          img.onload = () => {
-            URL.revokeObjectURL(url);
-            processImage(img);
-          };
-
-          img.onerror = () => {
-            URL.revokeObjectURL(url);
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              const fallbackImg = new Image();
-              fallbackImg.onload = () => processImage(fallbackImg);
-              fallbackImg.onerror = () => reject(new Error('Il formato di questa foto non è supportato. Prova a caricarla in un altro formato o usa uno screenshot.'));
-              fallbackImg.src = e.target?.result as string;
+          const loadImage = (source: string) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => processImage(img);
+            img.onerror = () => {
+              // Final fallback if everything fails
+              const isInApp = /Instagram|FBAN|FBAV|WhatsApp|Messenger/i.test(navigator.userAgent);
+              if (isInApp) {
+                reject(new Error('Il browser di questa app (Instagram/FB) sta bloccando il file. Tocca i tre puntini in alto a destra e seleziona "Apri in Chrome/Safari".'));
+              } else {
+                reject(new Error('Formato foto non riconosciuto dal browser. Prova a scattare una nuova foto o usa uno screenshot.'));
+              }
             };
-            reader.onerror = () => reject(new Error('Impossibile leggere il file dal dispositivo'));
-            reader.readAsDataURL(fileToProcess);
+            img.src = source;
           };
 
-          img.src = url;
+          // Try FileReader first as it's often more compatible with older mobile 'search engines' (browsers)
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            if (e.target?.result) {
+              loadImage(e.target.result as string);
+            }
+          };
+          reader.onerror = () => {
+            // Fallback to URL.createObjectURL if FileReader fails
+            try {
+              const url = URL.createObjectURL(fileToProcess);
+              loadImage(url);
+            } catch (e) {
+              reject(new Error('Il browser non ha il permesso di accedere alle foto. Verifica le impostazioni di privacy del telefono.'));
+            }
+          };
+          reader.readAsDataURL(fileToProcess);
         });
       };
 
