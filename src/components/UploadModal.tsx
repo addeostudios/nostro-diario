@@ -43,16 +43,30 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
     try {
       const fileName = `${Date.now()}-${auth.currentUser.uid}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       
-      // Compression logic: Resize to max 1200px before sending to server
-      const compressImage = async (imgFile: File): Promise<string> => {
+      // Compression and conversion logic
+      const processFile = async (imgFile: File): Promise<string> => {
+        let fileToProcess = imgFile;
+
+        // Support for HEIC/HEIF (common on iPhones)
+        if (imgFile.name.toLowerCase().endsWith('.heic') || imgFile.name.toLowerCase().endsWith('.heif')) {
+          try {
+            const heic2any = (await import('heic2any')).default;
+            const blob = await heic2any({
+              blob: imgFile,
+              toType: 'image/jpeg',
+              quality: 0.8
+            });
+            fileToProcess = new File([Array.isArray(blob) ? blob[0] : blob], imgFile.name.replace(/\.[^/.]+$/, ".jpg"), {
+              type: 'image/jpeg'
+            });
+          } catch (e) {
+            console.error('HEIC conversion failed:', e);
+            // Continue with original file if conversion fails, handled by processImage fallback
+          }
+        }
+
         return new Promise((resolve, reject) => {
-          // Use URL.createObjectURL instead of FileReader for loading the image
-          // This is much more memory efficient and reliable on mobile
-          const url = URL.createObjectURL(imgFile);
-          const img = new Image();
-          
-          img.onload = () => {
-            URL.revokeObjectURL(url); // Clean up memory
+          const processImage = (img: HTMLImageElement) => {
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
@@ -75,8 +89,6 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
             }
             
             ctx.drawImage(img, 0, 0, width, height);
-            
-            // Use quality 0.7 to ensure far below Vercel's 4.5MB limit
             const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
             const base64 = dataUrl.split(',')[1];
             
@@ -87,16 +99,32 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
             resolve(base64);
           };
 
+          const url = URL.createObjectURL(fileToProcess);
+          const img = new Image();
+          
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            processImage(img);
+          };
+
           img.onerror = () => {
             URL.revokeObjectURL(url);
-            reject(new Error('Immagine non valida o formato non supportato dal browser'));
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const fallbackImg = new Image();
+              fallbackImg.onload = () => processImage(fallbackImg);
+              fallbackImg.onerror = () => reject(new Error('Il formato di questa foto non è supportato. Prova a caricarla in un altro formato o usa uno screenshot.'));
+              fallbackImg.src = e.target?.result as string;
+            };
+            reader.onerror = () => reject(new Error('Impossibile leggere il file dal dispositivo'));
+            reader.readAsDataURL(fileToProcess);
           };
 
           img.src = url;
         });
       };
 
-      const base64Content = await compressImage(file);
+      const base64Content = await processFile(file);
 
       const response = await fetch('/api/upload-to-github', {
         method: 'POST',
@@ -130,16 +158,18 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
       };
 
       await dbService.addPhoto(photo);
-      onClose();
-      // Reset
+      
+      // Reset state BEFORE closing to avoid issues if component unmounts
       setFile(null);
       setPreview(null);
       setDescription('');
       setSelectedBadges([]);
+      setUploading(false);
+      
+      onClose();
     } catch (e: any) {
       console.error('Upload failed', e);
       alert(e.message || 'Errore durante il caricamento.');
-    } finally {
       setUploading(false);
     }
   };
@@ -153,6 +183,7 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) {
+      console.log("[UploadModal] File manually selected:", f.name, f.type, f.size);
       setFile(f);
       setPreview(URL.createObjectURL(f));
     }
@@ -170,7 +201,9 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className={`absolute inset-0 backdrop-blur-sm ${isDarkMode ? 'bg-slate-950/80' : 'bg-slate-900/60'}`}
-              onClick={onClose}
+              onClick={() => {
+                if (!uploading) onClose();
+              }}
             />
             
             <motion.div 
@@ -186,7 +219,8 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
                 </div>
                 <button 
                   onClick={onClose}
-                  className={`p-3 rounded-2xl shadow-sm transition-all ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-white hover:bg-slate-100 text-slate-400'}`}
+                  disabled={uploading}
+                  className={`p-3 rounded-2xl shadow-sm transition-all ${isDarkMode ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-white hover:bg-slate-100 text-slate-400'} disabled:opacity-50`}
                 >
                   <X size={20} />
                 </button>
@@ -197,17 +231,19 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
                 {preview ? (
                   <div className="relative aspect-[4/3] rounded-[2.5rem] overflow-hidden group shadow-lg">
                     <img src={preview} alt="Preview" className="w-full h-full object-cover" />
-                    <button 
-                      onClick={() => { setFile(null); setPreview(null); }}
-                      className="absolute top-4 right-4 p-3 bg-black/40 text-white backdrop-blur-md rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X size={18} />
-                    </button>
+                    {!uploading && (
+                      <button 
+                        onClick={() => { setFile(null); setPreview(null); }}
+                        className="absolute top-4 right-4 p-3 bg-black/40 text-white backdrop-blur-md rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X size={18} />
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div 
                     {...getRootProps()}
-                    className={`aspect-[4/3] rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all group shadow-sm hover:shadow-md ${isDarkMode ? 'bg-slate-800 border-slate-700 hover:border-pink-500/50' : 'bg-white border-slate-200 hover:border-pink-200'}`}
+                    className={`aspect-[4/3] rounded-[2.5rem] border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all group shadow-sm hover:shadow-md ${isDarkMode ? 'bg-slate-900 border-slate-800 hover:border-pink-500/50' : 'bg-white border-slate-200 hover:border-pink-200'}`}
                   >
                     <input {...getInputProps()} />
                     <div className={`p-5 rounded-[1.8rem] transition-all mb-4 ${isDarkMode ? 'bg-pink-900/30 text-pink-400 group-hover:bg-pink-900/50' : 'bg-pink-50 text-pink-400 group-hover:bg-pink-100'}`}>
@@ -223,11 +259,12 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
                   <div className="space-y-3">
                     <label className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 px-1 flex items-center gap-2">
                       <MessageSquare size={12} />
-                      Il vostro racconto
+                      Il vostro racconto (opzionale)
                     </label>
                     <textarea 
                       placeholder="Cosa stava succedendo? Scrivi un breve ricordo..."
                       className={`input w-full h-32 resize-none py-4 text-sm lowercase italic ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-slate-600' : ''}`}
+                      disabled={uploading}
                       value={description}
                       onChange={e => setDescription(e.target.value)}
                     />
@@ -241,6 +278,7 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
                       </label>
                       <input 
                         type="datetime-local" 
+                        disabled={uploading}
                         className={`input w-full text-sm ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white focus:border-slate-600 [color-scheme:dark]' : ''}`}
                         value={dateTaken}
                         onChange={e => setDateTaken(e.target.value)}
@@ -257,8 +295,9 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
                           {badges.map(b => (
                             <button
                               key={b.id}
+                              disabled={uploading}
                               onClick={() => toggleBadge(b.id)}
-                              className={`w-12 h-12 rounded-2xl transition-all flex items-center justify-center shrink-0 border-2 snap-start ${selectedBadges.includes(b.id) ? 'scale-110 shadow-lg' : 'opacity-30 border-transparent hover:opacity-100'}`}
+                              className={`w-12 h-12 rounded-2xl transition-all flex items-center justify-center shrink-0 border-2 snap-start ${selectedBadges.includes(b.id) ? 'scale-110 shadow-lg' : 'opacity-30 border-transparent hover:opacity-100'} disabled:opacity-20`}
                               style={{ 
                                 backgroundColor: b.color,
                                 borderColor: selectedBadges.includes(b.id) ? (isDarkMode ? '#334155' : 'white') : 'transparent',
@@ -277,8 +316,8 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
 
                   <button 
                     onClick={handleUpload}
-                    disabled={!file || !description || uploading}
-                    className={`btn-primary w-full py-5 flex items-center justify-center gap-3 shadow-xl mt-4 ${isDarkMode ? 'bg-pink-600 hover:bg-pink-700 shadow-[0_10px_30px_-10px_rgba(219,39,119,0.5)]' : ''}`}
+                    disabled={!file || uploading}
+                    className={`btn-primary w-full py-5 flex items-center justify-center gap-3 shadow-xl mt-4 ${isDarkMode ? 'bg-pink-600 hover:bg-pink-700 shadow-[0_10px_30px_-10px_rgba(219,39,119,0.5)]' : ''} disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {uploading ? (
                       <>
@@ -299,5 +338,6 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
         )}
       </AnimatePresence>
     </div>
+
   );
 }
