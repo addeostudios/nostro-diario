@@ -47,27 +47,33 @@ export default function Onboarding({ user, onComplete }: OnboardingProps) {
   };
 
   const handleJoin = async () => {
-    if (!coupleId) return;
+    const trimmedId = coupleId.trim();
+    if (!trimmedId) return;
     setLoading(true);
     setError('');
     try {
-      const existingCouple = await dbService.getCouple(coupleId);
+      const existingCouple = await dbService.getCouple(trimmedId);
       if (existingCouple) {
+        if (existingCouple.memberUids.includes(user.uid)) {
+          setError('Fai già parte di questa coppia.');
+          return;
+        }
         if (existingCouple.memberUids.length >= 2) {
           setError('Questa coppia ha già due membri.');
           return;
         }
         const updatedMemberUids = [...existingCouple.memberUids, user.uid];
-        // Use direct update if service doesn't have it, or expand service
-        await dbService.createCouple({ ...existingCouple, memberUids: updatedMemberUids }); 
-        await dbService.updateUserSettings(user.uid, { coupleId: coupleId });
-        onComplete({ ...existingCouple, memberUids: updatedMemberUids });
+        const updatedCouple = { ...existingCouple, memberUids: updatedMemberUids };
+        
+        await dbService.createCouple(updatedCouple); 
+        await dbService.updateUserSettings(user.uid, { coupleId: trimmedId });
+        onComplete(updatedCouple);
       } else {
-        setError('ID Coppia non trovato.');
+        setError('ID Coppia non trovato. Verifica di averlo inserito correttamente.');
       }
     } catch (e: any) {
       console.error('Join error details:', e);
-      setError('ID non valido o errore di connessione.');
+      setError('Errore di connessione o ID non valido. Riprova tra poco.');
     } finally {
       setLoading(false);
     }

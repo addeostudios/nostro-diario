@@ -55,14 +55,32 @@ service cloud.firestore {
       function isValidCouple(data) {
         return data.get('id', '') == coupleId &&
                data.get('name', '') is string && 
-               data.get('memberUids', []) is list && data.get('memberUids', []).size() > 0;
+               data.get('memberUids', []) is list && 
+               data.get('memberUids', []).size() >= 1 && 
+               data.get('memberUids', []).size() <= 2;
       }
 
-      allow get: if isSignedIn() && request.auth.uid in resource.data.memberUids;
-      allow create: if isSignedIn() && isValidCouple(incoming()) && request.auth.uid in incoming().memberUids;
-      allow update: if isSignedIn() && request.auth.uid in existing().memberUids && 
+      // Allow any signed-in user to GET a couple to verify its existence during join
+      allow get: if isSignedIn();
+      
+      allow create: if isSignedIn() && 
                       isValidCouple(incoming()) && 
-                      incoming().memberUids == existing().memberUids; 
+                      request.auth.uid in incoming().memberUids &&
+                      incoming().memberUids.size() == 1;
+
+      allow update: if isSignedIn() && (
+        // Case 1: Existing member updating settings (name, etc)
+        (request.auth.uid in existing().memberUids && 
+         isValidCouple(incoming()) && 
+         incoming().memberUids == existing().memberUids) ||
+        
+        // Case 2: New member joining
+        (existing().memberUids.size() == 1 && 
+         incoming().memberUids.size() == 2 &&
+         existing().memberUids[0] in incoming().memberUids &&
+         request.auth.uid in incoming().memberUids &&
+         isValidCouple(incoming()))
+      );
     }
 
     // Photos
