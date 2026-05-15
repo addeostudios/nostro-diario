@@ -8,7 +8,8 @@ const app = express();
 const PORT = 3000;
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   // Helper to find Vercel/Environment keys with loose naming
   const getGitConfig = () => {

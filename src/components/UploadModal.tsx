@@ -43,17 +43,43 @@ export default function UploadModal({ isOpen, onClose, coupleId, badges, isDarkM
     try {
       const fileName = `${Date.now()}-${auth.currentUser.uid}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
       
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const result = reader.result as string;
-          const base64 = result.split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-      });
-      reader.readAsDataURL(file);
-      const base64Content = await base64Promise;
+      // Compression logic: Resize to max 1200px before sending to server
+      const compressImage = async (imgFile: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(imgFile);
+          reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              const maxDim = 1200;
+
+              if (width > height && width > maxDim) {
+                height *= maxDim / width;
+                width = maxDim;
+              } else if (height > maxDim) {
+                width *= maxDim / height;
+                height = maxDim;
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(img, 0, 0, width, height);
+              // Use quality 0.7 to ensure far below Vercel's 4.5MB limit
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+              resolve(dataUrl.split(',')[1]);
+            };
+            img.onerror = () => reject(new Error('Immagine non valida'));
+          };
+          reader.onerror = () => reject(new Error('Errore durante la lettura del file'));
+        });
+      };
+
+      const base64Content = await compressImage(file);
 
       const response = await fetch('/api/upload-to-github', {
         method: 'POST',
